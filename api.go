@@ -120,6 +120,9 @@ func (b *Bot) sendFiles(method string, files map[string]File, params map[string]
 	}()
 
 	url := b.URL + "/bot" + b.Token + "/" + method
+	if b.Test {
+		url = b.URL + "/bot" + b.Token + "/test/" + method
+	}
 
 	resp, err := b.client.Post(url, writer.FormDataContentType(), pipeReader)
 	if err != nil {
