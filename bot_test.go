@@ -17,13 +17,16 @@ import (
 
 var (
 	// required to test send and edit methods
-	token     = os.Getenv("TELEBOT_SECRET")
-	chatID, _ = strconv.ParseInt(os.Getenv("CHAT_ID"), 10, 64)
-	userID, _ = strconv.ParseInt(os.Getenv("USER_ID"), 10, 64)
+	token = os.Getenv("TELEBOT_SECRET")
+	b, _  = newTestBot() // cached bot instance to avoid getMe method flooding
 
-	b, _ = newTestBot()      // cached bot instance to avoid getMe method flooding
-	to   = &Chat{ID: chatID} // to chat recipient for send and edit methods
-	user = &User{ID: userID} // to user recipient for some special cases
+	chatID, _    = strconv.ParseInt(os.Getenv("CHAT_ID"), 10, 64)
+	userID, _    = strconv.ParseInt(os.Getenv("USER_ID"), 10, 64)
+	channelID, _ = strconv.ParseInt(os.Getenv("CHANNEL_ID"), 10, 64)
+
+	to      = &Chat{ID: chatID}    // to chat recipient for send and edit methods
+	user    = &User{ID: userID}    // to user recipient for some special cases
+	channel = &Chat{ID: channelID} // to channel recipient for some special cases
 
 	logo  = FromURL("https://telegra.ph/file/c95b8fe46dd3df15d12e5.png")
 	thumb = FromURL("https://telegra.ph/file/fe28e378784b3a4e367fb.png")
@@ -231,6 +234,10 @@ func TestBotProcessUpdate(t *testing.T) {
 		assert.NotNil(t, c.Message().Payment)
 		return nil
 	})
+	b.Handle(OnRefund, func(c Context) error {
+		assert.NotNil(t, c.Message().RefundedPayment)
+		return nil
+	})
 	b.Handle(OnAddedToGroup, func(c Context) error {
 		assert.NotNil(t, c.Message().GroupCreated)
 		return nil
@@ -331,6 +338,7 @@ func TestBotProcessUpdate(t *testing.T) {
 	b.ProcessUpdate(Update{Message: &Message{Venue: &Venue{}}})
 	b.ProcessUpdate(Update{Message: &Message{Invoice: &Invoice{}}})
 	b.ProcessUpdate(Update{Message: &Message{Payment: &Payment{}}})
+	b.ProcessUpdate(Update{Message: &Message{RefundedPayment: &RefundedPayment{}}})
 	b.ProcessUpdate(Update{Message: &Message{Dice: &Dice{}}})
 	b.ProcessUpdate(Update{Message: &Message{GroupCreated: true}})
 	b.ProcessUpdate(Update{Message: &Message{UserJoined: &User{ID: 1}}})
@@ -531,6 +539,23 @@ func TestBot(t *testing.T) {
 		require.NoError(t, err)
 		assert.Len(t, msgs, 2)
 		assert.NotEmpty(t, msgs[0].AlbumID)
+	})
+
+	t.Run("SendPaid()", func(t *testing.T) {
+		_, err = b.SendPaid(nil, 0, nil)
+		assert.Equal(t, ErrBadRecipient, err)
+
+		_, err = b.SendPaid(channel, 0, nil)
+		assert.Error(t, err)
+
+		photo2 := *photo
+		photo2.Caption = ""
+
+		msg, err := b.SendPaid(channel, 1, PaidAlbum{photo, &photo2}, ModeHTML)
+		require.NoError(t, err)
+		require.NotNil(t, msg)
+		assert.Equal(t, 1, msg.PaidMedia.Stars)
+		assert.Equal(t, 2, len(msg.PaidMedia.PaidMedia))
 	})
 
 	t.Run("EditCaption()+ParseMode", func(t *testing.T) {
