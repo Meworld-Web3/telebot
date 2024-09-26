@@ -961,6 +961,10 @@ func (b *Bot) File(file *File) (io.ReadCloser, error) {
 	}
 
 	url := b.URL + "/file/bot" + b.Token + "/" + f.FilePath
+	if b.Test {
+		url = b.URL + "/file/bot" + b.Token + "/test/" + f.FilePath
+	}
+
 	file.FilePath = f.FilePath // saving file path
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
